@@ -19,7 +19,9 @@ on every merge to `main`.
 - Focus: vision inspection in **manufacturing only**. No drone inspection, no highway/ITS,
   anywhere on the site.
 - Positioning: vendor-neutral. "We pick the system that fits your part, not the one we're
-  paid to sell." Not tied to hardware sales. Based in Greenville, SC; serves SC manufacturers.
+  paid to sell." Vendor neutral, no hardware sales. Based in Greenville, SC; serves SC manufacturers.
+- We integrate and configure systems; we don't make cameras. Say "integrate" or
+  "configure", never "build" a system.
 - Fonts: Montserrat for headings, Lato for body. Self-hosted in `assets/fonts/`. Do not
   add Google Fonts or any other font requests.
 - Colors live as CSS variables at the top of `assets/site.css`:
@@ -27,16 +29,20 @@ on every merge to `main`.
   - `--green-ink` #3F7A22: green text on light backgrounds.
   - `--ink` #1D2326 text, `--steel` #55626A secondary text, `--paper` #F3F6F5 tinted sections.
   - `--ng` #E5533D for reject/defect states only.
-- Logo files in `assets/img/`. The lens mark replaces the "o" in the wordmark. Use the
-  dark wordmark on light backgrounds and the white wordmark on dark ones.
+- Logo files in `assets/img/`. The lens mark replaces the "o" in the wordmark. The site uses
+  the bold wordmarks (`visionspect-wordmark-bold-dark.svg` on light backgrounds,
+  `-bold-white.svg` on dark ones).
 - Don't name past employers. Say "automotive manufacturing".
-- Credentials that may be shown: SC MEP third-party provider, SourceSC approved supplier,
+- Write "SCMEP" with no space.
+- Service names are proper names in Title Case: Vision System Health Check, New Inspection,
+  Support & Tuning.
+- Credentials that may be shown: SCMEP third-party provider, SourceSC approved supplier,
   work aligned to ISO 9001 and IATF 16949. Don't add certifications, client names, logos
   or numbers that Nick hasn't confirmed.
 
 ## Copy
 - Short, direct, plain. Founder voice ("I" for Nick's own lines, "we" for the company).
-- Sentence case. No all-caps labels. No buzzwords ("cutting-edge", "seamless", "solutions
+- Sentence case for headings and buttons, except service names. No all-caps labels. No buzzwords ("cutting-edge", "seamless", "solutions
   that empower").
 - Graphics over paragraphs: if a section needs more than ~3 sentences, it probably needs
   an illustration instead.
