@@ -30,8 +30,9 @@ on every merge to `main`.
   - `--ink` #1D2326 text, `--steel` #55626A secondary text, `--paper` #F3F6F5 tinted sections.
   - `--ng` #E5533D for reject/defect states only.
 - Logo files in `assets/img/`. The lens mark replaces the "o" in the wordmark. The site uses
-  the bold wordmarks (`visionspect-wordmark-bold-dark.svg` on light backgrounds,
-  `-bold-white.svg` on dark ones).
+  the bold wordmarks (`visionspect-wordmark-bold-white.svg` on the black header and footer;
+  `-bold-dark.svg` if a logo is ever needed on a light background). Header and footer are
+  pure black (#000) so the lens's black disc blends in.
 - Don't name past employers. Say "automotive manufacturing".
 - Write "SCMEP" with no space.
 - Service names are proper names in Title Case: Vision System Health Check, New Inspection,
