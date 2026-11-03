@@ -39,7 +39,7 @@
 
   /* ---------- 3. Cloudflare Web Analytics ----------
      Paste the public site token from Cloudflare (Web Analytics > visionspect.com). */
-  var CF_TOKEN = "";
+  var CF_TOKEN = "6ed466e79e99484ab051c0b4e6300530";
   var LIVE_HOSTS = ["visionspect.com", "www.visionspect.com"];
   if (CF_TOKEN && LIVE_HOSTS.indexOf(location.hostname) !== -1) {
     var s = document.createElement("script");
