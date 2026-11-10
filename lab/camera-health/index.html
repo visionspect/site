@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="VisionSpect lab: camera health monitor pilot.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="preload" href="/assets/fonts/montserrat-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/lato-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face { font-family: "Montserrat"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/assets/fonts/montserrat-latin-wght-normal.woff2") format("woff2"); }
+@font-face { font-family: "Lato"; font-style: normal; font-weight: 400; font-display: swap; src: url("/assets/fonts/lato-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Lato"; font-style: normal; font-weight: 700; font-display: swap; src: url("/assets/fonts/lato-latin-700-normal.woff2") format("woff2"); }
+</style>
+<title>Camera health · VisionSpect Lab</title>
+<style>
+/* Layout: control-room wall — summary tiles, then a fleet timeline (camera × time), then cameras and episodes side by side; one camera opens in a detail panel.
+   Single dark look by choice (traffic-management video walls are dark; matches the Inspectability tool). */
+:root{
+  color-scheme:dark;
+  --bg:#0c0f0d; --panel:#131714; --panel2:#181d19; --well:#0a0c0b;
+  --line:#252c27; --line2:#313a33;
+  --ink:#e8ece5; --dim:#a3ada5; --faint:#6f7a72;
+  --brand:#70AD47; --accent:#4CB6D8;
+  /* status — reserved, always paired with icon + label */
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b; --info:#7f9cc4; --nodata:#2b322d;
+  --head:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --body:'Lato',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:#0e120f}
+h1,h2,h3{font-family:var(--head);margin:0;text-wrap:balance}
+button{font:inherit;color:inherit}
+.mono,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1440px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:#0e120f;border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:16px;min-height:56px;flex-wrap:wrap;padding-block:6px}
+.wm{font-family:var(--head);font-weight:800;font-size:19px;display:inline-flex;align-items:center;line-height:1;color:var(--ink);text-decoration:none}
+.wm svg{width:.78em;height:.78em;margin:0 .02em}
+.tabs{display:flex;gap:4px;background:var(--well);border:1px solid var(--line);border-radius:9px;padding:3px}
+.tabs a{padding:6px 12px;border-radius:6px;color:var(--dim);text-decoration:none;font-size:13px;white-space:nowrap}
+.tabs a[aria-current="page"]{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line2)}
+.tabs a:hover{color:var(--ink)}
+.meta{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--dim);border:1px solid var(--line2);border-radius:20px;padding:3px 10px;white-space:nowrap}
+.tag.sim{color:var(--warn);border-color:rgba(250,178,25,.4)}
+
+main .wrap{display:flex;flex-direction:column;gap:18px;padding-block:18px 40px}
+.notice{border:1px solid rgba(250,178,25,.32);background:rgba(250,178,25,.06);border-radius:var(--r);padding:10px 14px;font-size:13px;color:var(--dim)}
+.notice b{color:var(--warn)}
+
+/* KPI tiles */
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:620px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;min-width:0}
+.kpi .l{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.kpi .v{font-family:var(--head);font-weight:800;font-size:30px;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
+.kpi .v small{font-family:var(--mono);font-size:13px;font-weight:400;color:var(--dim);margin-left:6px}
+.kpi .s{font-size:12px;color:var(--dim);margin-top:4px}
+.statbar{display:flex;height:8px;border-radius:5px;overflow:hidden;margin-top:10px;gap:2px;background:var(--well)}
+.statbar i{display:block;height:100%}
+
+/* section */
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.sec>header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 16px 10px}
+.sec h2{font-size:15px;font-weight:700}
+.sec .sub{font-size:12px;color:var(--faint)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-left:auto;font-size:12px;color:var(--dim)}
+.legend span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+/* timeline */
+.tl-scroll{overflow-x:auto;padding:0 16px 14px}
+.tl{min-width:760px;display:grid;grid-template-columns:250px 1fr;column-gap:12px}
+.tl .hours{grid-column:2;position:relative;height:18px;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.tl .hours span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.tl .labels{display:flex;flex-direction:column}
+.tl .lab{height:20px;display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;border-radius:4px;padding:0 6px;min-width:0}
+.tl .lab:hover,.tl .lab.on{background:var(--panel2)}
+.tl .lab .id{font-family:var(--mono);font-size:11px;color:var(--faint);flex:none}
+.tl .lab .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl canvas{display:block;width:100%;cursor:pointer}
+.tip{position:fixed;z-index:20;pointer-events:none;background:#1d231f;border:1px solid var(--line2);border-radius:8px;padding:8px 10px;font-size:12px;min-width:180px;box-shadow:0 6px 24px rgba(0,0,0,.4);opacity:0;transition:opacity .08s}
+.tip.on{opacity:1}
+.tip .t{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.tip .n{font-weight:700;margin:2px 0 4px}
+.tip dl{display:grid;grid-template-columns:auto auto;gap:1px 10px;margin:4px 0 0}
+.tip dt{color:var(--faint)} .tip dd{margin:0;font-family:var(--mono);text-align:right}
+
+/* status pill */
+.pill{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.03em;padding:2px 8px;border-radius:20px;white-space:nowrap;background:var(--well);border:1px solid var(--line2);color:var(--ink)}
+.pill .ic{font-size:10px;line-height:1}
+
+/* two-up */
+.two{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:1100px){.two{grid-template-columns:1fr}}
+
+/* filter chips */
+.chips{display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 12px}
+.chip{background:var(--well);border:1px solid var(--line2);border-radius:20px;padding:4px 11px;font-size:12px;cursor:pointer;color:var(--dim)}
+.chip[aria-pressed="true"]{color:var(--ink);border-color:var(--accent);background:rgba(76,182,216,.08)}
+.chip b{font-family:var(--mono);font-weight:600;margin-left:4px;color:var(--faint)}
+
+/* camera cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;padding:0 16px 16px}
+.cam{background:var(--panel2);border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;text-align:left;padding:0;display:flex;flex-direction:column;transition:border-color .12s}
+.cam:hover{border-color:#47524a}
+.cam.on{border-color:var(--accent)}
+.cam .img{position:relative;aspect-ratio:4/3;background:#000;max-width:100%}
+.cam .img img{width:100%;height:100%;object-fit:cover;display:block}
+.cam .img .stale{position:absolute;inset:0;display:flex;align-items:flex-end;padding:8px;background:linear-gradient(180deg,transparent 50%,rgba(0,0,0,.75));font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+.cam .img .pill{position:absolute;top:8px;left:8px;background:rgba(10,12,11,.85)}
+.cam .body{padding:9px 11px 10px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.cam .nm{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cam .row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11.5px;color:var(--dim)}
+.cam .row .num{color:var(--ink)}
+.cam svg{display:block}
+
+/* episodes */
+.epsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;padding:0 16px 12px}
+.eps{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+.eps .k{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+.eps .n{font-family:var(--head);font-weight:800;font-size:20px;margin-top:3px;font-variant-numeric:tabular-nums}
+.eps .d{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.tbl-wrap{overflow-x:auto;padding:0 16px 14px;max-height:520px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-weight:700;color:var(--faint);font-size:11px;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--panel)}
+td{padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.nm{max-width:170px;overflow:hidden;text-overflow:ellipsis}
+td:last-child{white-space:normal;min-width:84px}
+tbody tr{cursor:pointer} tbody tr:hover{background:var(--panel2)}
+.open{color:var(--warn);font-family:var(--mono);font-size:11px}
+
+/* detail */
+#detail{scroll-margin-top:72px}
+.det{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:18px;padding:0 16px 16px}
+@media (max-width:820px){.det{grid-template-columns:1fr}}
+.det .img{aspect-ratio:4/3;background:#000;border-radius:8px;overflow:hidden;border:1px solid var(--line);max-width:100%}
+.det .img img{width:100%;height:100%;object-fit:cover;display:block}
+.det .cap{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:6px}
+.readout{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px}
+.readout div{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:7px 9px;min-width:0}
+.readout dt{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}
+.readout dd{margin:2px 0 0;font-family:var(--mono);font-size:13px}
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto}
+.chart .ct{font-size:12px;color:var(--dim);margin-bottom:6px}
+.strip{display:block;width:100%;height:14px;border-radius:3px;margin:8px 0 2px}
+.det h3{font-size:16px}
+.det .detmeta{font-size:12px;color:var(--dim);margin:2px 0 10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.empty-det{padding:0 16px 16px;color:var(--faint);font-size:13px}
+
+footer.method{font-size:12px;color:var(--faint);line-height:1.6}
+footer.method b{color:var(--dim)}
+footer.method code{font-family:var(--mono);color:var(--dim);font-size:11.5px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="38" fill="none" stroke="#70AD47" stroke-width="15"/></symbol></defs></svg>
+
+<header class="top">
+  <div class="wrap">
+    <a class="wm" href="/" aria-label="VisionSpect">Visi<svg aria-hidden="true"><use href="#ring"/></svg>nSpect</a>
+    <nav class="tabs" aria-label="Tools">
+      <a href="#" aria-current="page">Camera health</a>
+      <a href="inspectability.html" id="inspLink">Inspectability</a>
+    </nav>
+    <div class="meta"><span class="tag" id="srcTag">SCDOT 511</span><span class="tag sim" id="simTag" hidden>SIMULATED DATA</span><span class="tag" id="lastTag"></span></div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="notice" id="simNotice" hidden><b>Preview with simulated data.</b> Camera names are Upstate SC roads for legibility; IDs, statuses and images are invented. Run the monitor on your machine and it writes this same dashboard from real polls.</div>
+
+    <section class="kpis" id="kpis" aria-label="Fleet summary"></section>
+
+    <section class="sec" aria-labelledby="tlH">
+      <header><h2 id="tlH">Fleet timeline</h2><span class="sub" id="tlSub"></span><div class="legend" id="legend"></div></header>
+      <div class="tl-scroll"><div class="tl" id="tl">
+        <div></div><div class="hours" id="hours"></div>
+        <div class="labels" id="labels"></div><canvas id="tlc" aria-label="Status of each camera over time"></canvas>
+      </div></div>
+    </section>
+
+    <section class="sec" id="detail" aria-labelledby="detH">
+      <header><h2 id="detH">Camera detail</h2><span class="sub">Click a camera, a timeline row or an episode</span></header>
+      <div id="detBody"></div>
+    </section>
+
+    <div class="two">
+      <section class="sec" aria-labelledby="camH">
+        <header><h2 id="camH">Cameras</h2><span class="sub">latest frame · healthy share of polls · image quality</span></header>
+        <div class="chips" id="chips" role="group" aria-label="Filter cameras"></div>
+        <div class="grid" id="grid"></div>
+      </section>
+      <section class="sec" aria-labelledby="epH">
+        <header><h2 id="epH">Episodes</h2><span class="sub">time each camera stayed degraded, measured start to recovery</span></header>
+        <div class="epsum" id="epsum"></div>
+        <div class="tbl-wrap"><table><thead><tr><th>Camera</th><th>Issue</th><th>Start</th><th>Duration</th></tr></thead><tbody id="eptb"></tbody></table></div>
+      </section>
+    </div>
+
+    <footer class="method" id="method"></footer>
+  </div>
+</main>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+window.VS_DATA = null;
+window.VS_DATA_URL = 'data.json';
+</script>
+<script>
+function vsDashboard(D) {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  if (!D || !D.cameras || !D.cameras.length) { document.querySelector('main .wrap').innerHTML = '<p class="notice">No camera data yet. The monitor publishes data after its first cycle.</p>'; return; }
+
+  // ---- status vocabulary (severity → reserved status color; every use pairs icon + label)
+  const CSS = getComputedStyle(document.documentElement), tok = (n) => CSS.getPropertyValue(n).trim();
+  const ST = {
+    ok:           { label: 'Healthy',      icon: '●', sev: 'good',     col: tok('--good') },
+    poor_quality: { label: 'Poor image',   icon: '▲', sev: 'warn',     col: tok('--warn') },
+    view_changed: { label: 'View moved',   icon: '↔', sev: 'info',     col: tok('--info') },
+    frozen:       { label: 'Frozen',       icon: '❚❚', sev: 'serious', col: tok('--serious') },
+    blank:        { label: 'Blank',        icon: '■', sev: 'serious',  col: tok('--serious') },
+    placeholder:  { label: 'Unavailable',  icon: '⧉', sev: 'serious',  col: tok('--serious') },
+    offline:      { label: 'Offline',      icon: '✕', sev: 'critical', col: tok('--critical') }
+  };
+  const SEV_ORDER = { critical: 0, serious: 1, warn: 2, info: 3, good: 4 };
+  const NODATA = tok('--nodata');
+  const pill = (s) => { const x = ST[s] || { label: s, icon: '·', col: NODATA }; return `<span class="pill"><span class="ic" style="color:${x.col}">${x.icon}</span>${esc(x.label)}</span>`; };
+
+  const tz = D.timeZone || 'America/New_York';
+  const fmtT = (t) => new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz });
+  const fmtDT = (t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: tz });
+  const fmtDur = (min) => min < 60 ? `${Math.round(min)} min` : `${Math.floor(min / 60)} h ${String(Math.round(min % 60)).padStart(2, '0')} min`;
+  const pct = (v) => v == null ? '—' : `${Math.round(v)}%`;
+
+  // ---- header / notices
+  if (D.inspectabilityHref) $('#inspLink').setAttribute('href', D.inspectabilityHref); else $('#inspLink').hidden = true;
+  $('#srcTag').textContent = D.source || 'SCDOT 511';
+  if (D.simulated) { $('#simTag').hidden = false; $('#simNotice').hidden = false; }
+  $('#lastTag').textContent = `last cycle ${fmtDT(D.end)}`;
+  $('#tlSub').textContent = `${D.cameras.length} cameras · ${fmtDT(D.start)} – ${fmtT(D.end)} · ${D.stepMin}-min cycles`;
+
+  // ---- derived per camera
+  const cams = D.cameras.map((c) => {
+    const polls = c.polls, n = polls.length;
+    const ok = polls.filter((p) => p.s === 'ok').length;
+    const avail = polls.filter((p) => p.s !== 'offline' && p.s !== 'placeholder').length;
+    const iqs = polls.map((p) => p.iq).filter((v) => v != null).sort((a, b) => a - b);
+    const last = polls[n - 1] || {};
+    return { ...c, n, healthy: n ? 100 * ok / n : null, avail: n ? 100 * avail / n : null, medIQ: iqs.length ? iqs[Math.floor(iqs.length / 2)] : null, last };
+  });
+  cams.sort((a, b) => (SEV_ORDER[(ST[a.last.s] || {}).sev] ?? 9) - (SEV_ORDER[(ST[b.last.s] || {}).sev] ?? 9) || a.healthy - b.healthy || a.id.localeCompare(b.id));
+  const byId = Object.fromEntries(cams.map((c) => [c.id, c]));
+
+  // ---- episodes: runs of the same non-ok status (offline gaps of one poll still count)
+  const episodes = [];
+  for (const c of cams) {
+    let cur = null;
+    c.polls.forEach((p, i) => {
+      if (cur && p.s !== cur.s) { cur.end = p.t; cur.open = false; episodes.push(cur); cur = null; }
+      if (!cur && p.s !== 'ok') cur = { id: c.id, name: c.name, s: p.s, start: p.t, polls: 0 };
+      if (cur) cur.polls++;
+      if (i === c.polls.length - 1 && cur) { cur.end = D.end; cur.open = true; episodes.push(cur); }
+    });
+  }
+  episodes.forEach((e) => { e.min = (Date.parse(e.end) - Date.parse(e.start)) / 60000 + (e.open ? D.stepMin : 0); });
+  episodes.sort((a, b) => (b.open - a.open) || Date.parse(b.start) - Date.parse(a.start));
+  const closed = episodes.filter((e) => !e.open && e.s !== 'view_changed');
+  const degradedH = closed.reduce((a, e) => a + e.min, 0) / 60;
+  const medClosed = closed.length ? closed.map((e) => e.min).sort((a, b) => a - b)[Math.floor(closed.length / 2)] : null;
+
+  // ---- KPI tiles
+  const allPolls = cams.reduce((a, c) => a + c.n, 0);
+  const okPolls = cams.reduce((a, c) => a + c.polls.filter((p) => p.s === 'ok').length, 0);
+  const nowCount = {}; cams.forEach((c) => { nowCount[c.last.s] = (nowCount[c.last.s] || 0) + 1; });
+  const healthyNow = nowCount.ok || 0, openIssues = cams.filter((c) => c.last.s && c.last.s !== 'ok').length;
+  const statBar = Object.keys(ST).filter((s) => nowCount[s]).sort((a, b) => SEV_ORDER[ST[b].sev] - SEV_ORDER[ST[a].sev])
+    .map((s) => `<i style="flex:${nowCount[s]};background:${ST[s].col}" title="${ST[s].label}: ${nowCount[s]}"></i>`).join('');
+  $('#kpis').innerHTML = [
+    ['Cameras monitored', `${cams.length}`, `${allPolls.toLocaleString('en-US')} polls in window`],
+    ['Healthy now', `${healthyNow}<small>of ${cams.length}</small>`, `<div class="statbar" aria-hidden="true">${statBar}</div>`],
+    ['Fleet healthy', pct(100 * okPolls / allPolls), 'share of all polls, last 24 h'],
+    ['Open issues', `${openIssues}`, Object.keys(ST).filter((s) => s !== 'ok' && nowCount[s]).map((s) => `${nowCount[s]} ${ST[s].label.toLowerCase()}`).join(' · ') || 'none'],
+    ['Measured time degraded', `${degradedH.toFixed(1)}<small>h</small>`, closed.length ? `${closed.length} closed episodes · median ${fmtDur(medClosed)}` : 'no closed episodes yet']
+  ].map(([l, v, s]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
+
+  // ---- legend (severity groups)
+  $('#legend').innerHTML = [['good', 'Healthy'], ['warn', 'Poor image'], ['info', 'View moved'], ['serious', 'Frozen · blank · unavailable'], ['critical', 'Offline']]
+    .map(([k, l]) => `<span><i class="sw" style="background:${tok('--' + k)}"></i>${l}</span>`).join('') + `<span><i class="sw" style="background:${NODATA}"></i>No data</span>`;
+
+  // ---- timeline
+  const t0 = Date.parse(D.start), t1 = Date.parse(D.end) + D.stepMin * 60000, cols = Math.round((t1 - t0) / (D.stepMin * 60000));
+  const ROW = 20, labels = $('#labels'), cv = $('#tlc'), tip = $('#tip');
+  labels.innerHTML = cams.map((c) => `<div class="lab" data-id="${esc(c.id)}" title="${esc(c.name)}"><span class="pill" style="padding:1px 5px"><span class="ic" style="color:${(ST[c.last.s] || {}).col || NODATA}">${(ST[c.last.s] || {}).icon || '·'}</span></span><span class="id">${esc(c.id)}</span><span class="nm">${esc(c.name)}</span></div>`).join('');
+  const grid = cams.map((c) => { const row = new Array(cols).fill(null); c.polls.forEach((p) => { const k = Math.floor((Date.parse(p.t) - t0) / (D.stepMin * 60000)); if (k >= 0 && k < cols) row[k] = p; }); return row; });
+  let selected = null;
+  function drawTimeline() {
+    const w = cv.clientWidth || 600, h = cams.length * ROW, dpr = window.devicePixelRatio || 1;
+    cv.style.height = h + 'px'; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const cw = w / cols;
+    grid.forEach((row, r) => {
+      const y = r * ROW + 3, hh = ROW - 6;
+      if (selected === cams[r].id) { g.fillStyle = tok('--panel2'); g.fillRect(0, r * ROW, w, ROW); }
+      row.forEach((p, k) => {
+        g.fillStyle = p ? (ST[p.s] || {}).col || NODATA : NODATA;
+        g.fillRect(k * cw, y, Math.max(cw - (cw > 4 ? 1 : 0), 0.6), hh);
+      });
+    });
+    // hour ticks
+    const hours = $('#hours'); let html = '';
+    const first = new Date(t0); first.setUTCMinutes(0, 0, 0);
+    for (let t = first.getTime(); t <= t1; t += 3600000) {
+      const hr = +new Date(t).toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: tz });
+      if (hr % 3 !== 0 || t < t0) continue;
+      html += `<span style="left:${100 * (t - t0) / (t1 - t0)}%">${fmtT(t).replace(':00', '')}</span>`;
+    }
+    hours.innerHTML = html;
+  }
+  function cellAt(e) {
+    const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    const row = Math.floor(y / ROW), k = Math.floor(x / (r.width / cols));
+    return row >= 0 && row < cams.length && k >= 0 && k < cols ? { row, k } : null;
+  }
+  cv.addEventListener('mousemove', (e) => {
+    const c = cellAt(e); if (!c) { tip.classList.remove('on'); return; }
+    const cam = cams[c.row], p = grid[c.row][c.k];
+    tip.innerHTML = `<div class="t">${fmtDT(t0 + c.k * D.stepMin * 60000)}</div><div class="n">${esc(cam.name)}</div>${p ? pill(p.s) : '<span class="pill">No data</span>'}` +
+      (p && p.iq != null ? `<dl><dt>Image quality</dt><dd>${p.iq.toFixed(0)}</dd>${p.edge != null ? `<dt>Edge width</dt><dd>${p.edge.toFixed(1)} px</dd>` : ''}<dt>Mean level</dt><dd>${p.mean != null ? p.mean.toFixed(0) + ' GL' : '—'}</dd></dl>` : (p && p.reason ? `<dl><dt>Reason</dt><dd>${esc(p.reason)}</dd></dl>` : ''));
+    const tw = 220, x = Math.min(e.clientX + 14, window.innerWidth - tw - 8), y = Math.min(e.clientY + 14, window.innerHeight - 140);
+    tip.style.left = x + 'px'; tip.style.top = y + 'px'; tip.classList.add('on');
+  });
+  cv.addEventListener('mouseleave', () => tip.classList.remove('on'));
+  cv.addEventListener('click', (e) => { const c = cellAt(e); if (c) select(cams[c.row].id, true); });
+  labels.addEventListener('click', (e) => { const l = e.target.closest('.lab'); if (l) select(l.dataset.id, true); });
+
+  // ---- sparkline (single series: text-colored line, emphasized endpoint)
+  function spark(c, w = 110, h = 26) {
+    const pts = c.polls.map((p, i) => [i, p.iq]); const n = Math.max(1, pts.length - 1);
+    const X = (i) => 2 + (w - 6) * i / n, Y = (v) => h - 3 - (h - 6) * v / 100;
+    let d = '', pen = false; for (const [i, v] of pts) { if (v == null) { pen = false; continue; } d += (pen ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1); pen = true; }
+    const lastI = pts.map((p) => p[1]).lastIndexOf(pts.filter((p) => p[1] != null).map((p) => p[1]).pop());
+    const lv = c.polls.filter((p) => p.iq != null).map((p) => p.iq).pop();
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><line x1="2" x2="${w - 4}" y1="${Y(60)}" y2="${Y(60)}" stroke="${tok('--line2')}" stroke-dasharray="2 3"/><path d="${d}" fill="none" stroke="${tok('--dim')}" stroke-width="1.5"/>${lv != null ? `<circle cx="${X(lastI)}" cy="${Y(lv)}" r="2.6" fill="${tok('--ink')}"/>` : ''}</svg>`;
+  }
+
+  // ---- camera cards + filters
+  const FILTERS = [
+    ['all', 'All', () => true], ['issues', 'Issues', (c) => c.last.s !== 'ok'],
+    ['offline', 'Offline', (c) => c.last.s === 'offline'], ['notlive', 'Not live', (c) => ['frozen', 'blank', 'placeholder'].includes(c.last.s)],
+    ['poor', 'Poor image', (c) => c.last.s === 'poor_quality'], ['ok', 'Healthy', (c) => c.last.s === 'ok']
+  ];
+  let filter = 'all';
+  try { filter = localStorage.getItem('vs-camfilter') || 'all'; } catch (e) {}
+  function renderChips() {
+    $('#chips').innerHTML = FILTERS.map(([k, l, f]) => `<button class="chip" data-f="${k}" aria-pressed="${k === filter}">${l}<b>${cams.filter(f).length}</b></button>`).join('');
+  }
+  function renderGrid() {
+    const f = FILTERS.find((x) => x[0] === filter)[2];
+    $('#grid').innerHTML = cams.filter(f).map((c) => `
+      <button class="cam${selected === c.id ? ' on' : ''}" data-id="${esc(c.id)}">
+        <div class="img">${c.thumb ? `<img src="${c.thumb}" alt="Latest frame from ${esc(c.name)}">` : ''}${pill(c.last.s)}
+          ${c.thumbStatus && c.last.s === 'offline' ? `<div class="stale">last good frame · ${fmtT(c.thumbTime)}</div>` : ''}</div>
+        <div class="body"><div class="nm" title="${esc(c.name)}">${esc(c.name)}</div>
+          <div class="row"><span>Healthy <span class="num">${pct(c.healthy)}</span></span><span>IQ <span class="num">${c.medIQ == null ? '—' : c.medIQ.toFixed(0)}</span></span></div>
+          <div class="row"><span class="mono" style="color:var(--faint)">${esc(c.id)}</span>${spark(c)}</div></div>
+      </button>`).join('') || '<p class="empty-det">No cameras match this filter.</p>';
+  }
+  $('#chips').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; filter = b.dataset.f; try { localStorage.setItem('vs-camfilter', filter); } catch (er) {} renderChips(); renderGrid(); });
+  $('#grid').addEventListener('click', (e) => { const b = e.target.closest('.cam'); if (b) select(b.dataset.id, true); });
+
+  // ---- episodes
+  const TYPES = ['offline', 'placeholder', 'blank', 'frozen', 'poor_quality', 'view_changed'];
+  $('#epsum').innerHTML = TYPES.filter((t) => episodes.some((e) => e.s === t)).map((t) => {
+    const es = episodes.filter((e) => e.s === t), cl = es.filter((e) => !e.open), op = es.length - cl.length;
+    const med = cl.length ? cl.map((e) => e.min).sort((a, b) => a - b)[Math.floor(cl.length / 2)] : null;
+    return `<div class="eps"><div class="k"><span style="color:${ST[t].col}">${ST[t].icon}</span>${ST[t].label}</div><div class="n">${es.length}</div><div class="d">${med != null ? 'median ' + fmtDur(med) : 'none closed'}${op ? ` · ${op} open` : ''}</div></div>`;
+  }).join('');
+  $('#eptb').innerHTML = episodes.map((e) => `<tr data-id="${esc(e.id)}"><td class="nm" title="${esc(e.name)}">${esc(e.name)}</td><td>${pill(e.s)}</td><td class="mono">${fmtDT(e.start)}</td><td class="mono">${e.open ? `<span class="open">ongoing · ${fmtDur(e.min)}</span>` : fmtDur(e.min)}</td></tr>`).join('');
+  $('#eptb').addEventListener('click', (e) => { const r = e.target.closest('tr'); if (r) select(r.dataset.id, true); });
+
+  // ---- detail
+  function lineChart(c, W) {
+    W = Math.max(260, Math.round(W || 600)); const H = 170, L = 34, R = 10, T = 10, B = 24;
+    const X = (t) => L + (W - L - R) * (Date.parse(t) - t0) / (t1 - t0), Y = (v) => T + (H - T - B) * (1 - v / 100);
+    let d = '', pen = false, area = '';
+    const pts = c.polls.filter((p) => p.iq != null);
+    c.polls.forEach((p) => { if (p.iq == null) { pen = false; return; } d += (pen ? 'L' : 'M') + X(p.t).toFixed(1) + ' ' + Y(p.iq).toFixed(1); pen = true; });
+    let ticks = '';
+    for (const v of [0, 25, 50, 75, 100]) ticks += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${tok('--line')}" stroke-width="1"/><text x="${L - 6}" y="${Y(v) + 3.5}" text-anchor="end" font-size="10" fill="${tok('--faint')}" font-family="ui-monospace, Menlo, Consolas, monospace">${v}</text>`;
+    const first = new Date(t0); first.setUTCMinutes(0, 0, 0);
+    for (let t = first.getTime(); t <= t1; t += 3600000) {
+      const hr = +new Date(t).toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: tz });
+      if (hr % 6 !== 0 || t < t0) continue;
+      const x = L + (W - L - R) * (t - t0) / (t1 - t0);
+      ticks += `<text x="${x}" y="${H - 6}" text-anchor="middle" font-size="10" fill="${tok('--faint')}" font-family="ui-monospace, Menlo, Consolas, monospace">${fmtT(t).replace(':00', '')}</text>`;
+    }
+    const lp = pts[pts.length - 1];
+    return `<div class="chart"><div class="ct">Image quality, 0–100 · dashed line = poor-image threshold (60)</div>
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Image quality over the last 24 hours">${ticks}
+      <line x1="${L}" x2="${W - R}" y1="${Y(60)}" y2="${Y(60)}" stroke="${tok('--warn')}" stroke-dasharray="4 4" stroke-width="1"/>
+      <path d="${d}" fill="none" stroke="${tok('--accent')}" stroke-width="2" stroke-linejoin="round"/>
+      ${lp ? `<circle cx="${X(lp.t)}" cy="${Y(lp.iq)}" r="4" fill="${tok('--accent')}" stroke="${tok('--panel')}" stroke-width="2"/>` : ''}
+      <line id="xh" y1="${T}" y2="${H - B}" stroke="${tok('--dim')}" stroke-width="1" opacity="0"/><rect id="hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/></svg>
+      <canvas class="strip" id="strip" aria-label="Status over the last 24 hours"></canvas></div>`;
+  }
+  function select(id, scroll) {
+    selected = id; const c = byId[id];
+    document.querySelectorAll('.lab').forEach((l) => l.classList.toggle('on', l.dataset.id === id));
+    renderGrid(); drawTimeline();
+    const lastGood = [...c.polls].reverse().find((q) => q.iq != null), p = lastGood || c.last, eps = episodes.filter((e) => e.id === id);
+    const rd = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+    $('#detBody').innerHTML = `<div class="det">
+      <div><div class="img">${c.thumb ? `<img src="${c.thumb}" alt="Latest frame from ${esc(c.name)}">` : ''}</div>
+        <div class="cap">${c.thumbTime ? `${c.last.s === 'offline' ? 'last good frame' : 'latest saved frame'} · ${fmtDT(c.thumbTime)}` : 'no saved frame'}</div>
+        <div class="cap" style="margin-top:10px">${lastGood && lastGood !== c.last ? 'metrics from last good poll · ' + fmtDT(lastGood.t) : 'metrics from latest poll'}</div>
+        <dl class="readout">${rd('Image quality', p.iq != null ? p.iq.toFixed(0) : '—')}${rd('Edge width', p.edge != null ? p.edge.toFixed(1) + ' px' : '—')}${rd('Mean level', p.mean != null ? p.mean.toFixed(0) + ' GL' : '—')}
+          ${rd('Clipped', p.clip != null ? p.clip.toFixed(1) + '%' : '—')}${rd('Noise σ', p.noise != null ? p.noise.toFixed(2) + ' GL' : '—')}${rd('View match', p.ncc != null ? p.ncc.toFixed(2) : '—')}</dl></div>
+      <div style="min-width:0"><h3>${esc(c.name)}</h3>
+        <div class="detmeta">${pill(c.last.s)}<span class="mono">${esc(c.id)}</span><span>healthy ${pct(c.healthy)} · available ${pct(c.avail)} · median IQ ${c.medIQ == null ? '—' : c.medIQ.toFixed(0)}</span></div>
+        <div id="chartHost"></div>
+        <div class="ct" style="font-size:12px;color:var(--dim);margin-top:12px">Episodes</div>
+        ${eps.length ? `<table><tbody>${eps.map((e) => `<tr><td>${pill(e.s)}</td><td class="mono">${fmtDT(e.start)}</td><td class="mono">${e.open ? `<span class="open">ongoing · ${fmtDur(e.min)}</span>` : fmtDur(e.min)}</td></tr>`).join('')}</tbody></table>` : '<p class="empty-det" style="padding:0">No issues in this window.</p>'}
+      </div></div>`;
+    const host = $('#chartHost'); host.innerHTML = lineChart(c, host.clientWidth);
+    // status strip under the chart
+    const sc = $('#strip'); if (sc) {
+      const w = sc.clientWidth, dpr = window.devicePixelRatio || 1; sc.width = Math.round(w * dpr); sc.height = Math.round(14 * dpr);
+      const g = sc.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const svgEl = sc.previousElementSibling, vb = svgEl.viewBox.baseVal, sx = w / vb.width, L = 34 * sx, R = 10 * sx, cw = (w - L - R) / cols;
+      grid[cams.indexOf(c)].forEach((q, k) => { g.fillStyle = q ? ST[q.s].col : NODATA; g.fillRect(L + k * cw, 0, Math.max(cw - 0.5, 0.6), 14); });
+      // crosshair tooltip
+      const hit = svgEl.querySelector('#hit'), xh = svgEl.querySelector('#xh');
+      hit.addEventListener('mousemove', (e) => {
+        const r = svgEl.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * vb.width;
+        const t = t0 + (x - 34) / (vb.width - 44) * (t1 - t0);
+        let best = null; for (const q of c.polls) if (!best || Math.abs(Date.parse(q.t) - t) < Math.abs(Date.parse(best.t) - t)) best = q;
+        if (!best) return;
+        const bx = 34 + (vb.width - 44) * (Date.parse(best.t) - t0) / (t1 - t0);
+        xh.setAttribute('x1', bx); xh.setAttribute('x2', bx); xh.setAttribute('opacity', '0.6');
+        tip.innerHTML = `<div class="t">${fmtDT(best.t)}</div>${pill(best.s)}<dl><dt>Image quality</dt><dd>${best.iq != null ? best.iq.toFixed(0) : '—'}</dd><dt>Edge width</dt><dd>${best.edge != null ? best.edge.toFixed(1) + ' px' : '—'}</dd></dl>`;
+        tip.style.left = Math.min(e.clientX + 14, window.innerWidth - 230) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; tip.classList.add('on');
+      });
+      hit.addEventListener('mouseleave', () => { xh.setAttribute('opacity', '0'); tip.classList.remove('on'); });
+    }
+    if (scroll) $('#detail').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  // ---- method footer
+  $('#method').innerHTML = `<b>How this is measured.</b> Each cycle the monitor downloads every camera's public snapshot and runs the deterministic VisionSpect engine v${esc(D.engine)} on it — no AI, every number reproducible from the saved image. ` +
+    `<b>Offline</b>: request failed or not an image. <b>Unavailable</b>: the same file served by 3+ cameras. <b>Blank</b>: near-uniform frame. <b>Frozen</b>: unchanged for ${D.frozenMinutes} min or more. ` +
+    `<b>Poor image</b>: general quality score under 60 (focus, exposure, clipping, noise). <b>View moved</b>: scene structure no longer matches the camera's daylight baseline — informational, operators move PTZ cameras on purpose. ` +
+    `Episode durations are measured: the monitor only observes, so each one runs from the first bad poll to the first good one. Thresholds are provisional until tuned on real data. Monitor v${esc(D.monitor)} · generated ${fmtDT(D.generated)}.`;
+
+  // ---- go
+  renderChips(); renderGrid();
+  const firstIssue = cams.find((c) => c.last.s !== 'ok') || cams[0];
+  requestAnimationFrame(() => { drawTimeline(); select(firstIssue.id, false); });
+  let rz, lastW = 0; new ResizeObserver(() => { const w = document.body.clientWidth; if (w === lastW) return; lastW = w; clearTimeout(rz); rz = setTimeout(() => { drawTimeline(); if (selected) select(selected, false); }, 120); }).observe(document.body);
+}
+// Data is either embedded (local dashboard.html) or fetched (hosted page sets window.VS_DATA_URL).
+(function boot() {
+  if (window.VS_DATA) return vsDashboard(window.VS_DATA);
+  if (!window.VS_DATA_URL) return vsDashboard(null);
+  fetch(window.VS_DATA_URL, { cache: 'no-store', credentials: 'same-origin' })
+    .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(vsDashboard)
+    .catch((e) => { document.querySelector('main .wrap').innerHTML = '<p class="notice"><b>Couldn\u2019t load camera data</b> (' + String(e.message).replace(/[<>&]/g, '') + '). The monitor may not have published yet; try again in a few minutes.</p>'; });
+  // refresh with the monitor's cadence while the tab is visible
+  setInterval(() => { if (!document.hidden) location.reload(); }, 10 * 60 * 1000);
+})();
+</script>
+
+</body>
+</html>

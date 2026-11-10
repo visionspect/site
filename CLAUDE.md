@@ -18,6 +18,8 @@ on every merge to `main`.
 - Name: VisionSpect Solutions. Domain: visionspect.com. Email: nick@visionspect.com.
 - Focus: vision inspection in **manufacturing only**. No drone inspection, no highway/ITS,
   anywhere on the site.
+  Exception: `/lab/` holds unlisted, password-protected R&D pages (currently the SCDOT
+  camera-health pilot). Never link to `/lab/` from public pages, the sitemap or robots.txt.
 - Positioning: vendor-neutral. "We pick the system that fits your part, not the one we're
   paid to sell." Vendor neutral, no hardware sales. Based in Greenville, SC; serves SC manufacturers.
 - We integrate and configure systems; we don't make cameras. Say "integrate" or
@@ -48,10 +50,20 @@ on every merge to `main`.
 - Graphics over paragraphs: if a section needs more than ~3 sentences, it probably needs
   an illustration instead.
 
+## Lab (`/lab/`)
+- Every request under `/lab/` goes through `netlify/edge-functions/lab-auth.js` (HTTP Basic Auth,
+  password in the Netlify env var `LAB_PASSWORD`; the lab stays closed if it's unset).
+- `lab/camera-health/index.html` is generated from the private `visionspect/quality-gate` repo
+  (`node monitor/build-lab-page.js <path>`). Don't hand-edit it; change the template there and regenerate.
+- Its data comes from Google Cloud Run via the env var `CAMERA_HEALTH_DATA_URL`, fetched by the edge
+  function. Data updates never need a deploy.
+- No engine code on this site. The engine stays in the private repo.
+
 ## Conventions
 - Cache busting: CSS/JS are linked as `site.css?v=YYYYMMDDx`. Bump the value in every
   HTML file when you change those files.
-- Every page has a title, meta description, canonical URL and favicon links. The homepage
+- Every page has a title, meta description, canonical URL and favicon links. Lab pages
+  skip the canonical URL and stay out of the sitemap. The homepage
   also has Open Graph tags (og-image is `assets/img/og-image.jpg`, 1200x630).
 - Illustrations are inline SVG, colored with the classes in `site.css`, with a `<title>`
   for screen readers.
