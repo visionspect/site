@@ -18,7 +18,7 @@ on every merge to `main`.
 - Name: VisionSpect Solutions. Domain: visionspect.com. Email: nick@visionspect.com.
 - Focus: vision inspection in **manufacturing only**. No drone inspection, no highway/ITS,
   anywhere on the site.
-  Exception: `/lab/` holds unlisted, password-protected R&D pages (currently the SCDOT
+  Exception: `/lab/` holds unlisted R&D pages behind an access code (currently the SCDOT
   camera-health pilot). Never link to `/lab/` from public pages, the sitemap or robots.txt.
 - Positioning: vendor-neutral. "We pick the system that fits your part, not the one we're
   paid to sell." Vendor neutral, no hardware sales. Based in Greenville, SC; serves SC manufacturers.
@@ -51,8 +51,9 @@ on every merge to `main`.
   an illustration instead.
 
 ## Lab (`/lab/`)
-- Every request under `/lab/` goes through `netlify/edge-functions/lab-auth.js` (HTTP Basic Auth,
-  password in the Netlify env var `LAB_PASSWORD`; the lab stays closed if it's unset).
+- Every request under `/lab/` goes through `netlify/edge-functions/lab-auth.js`. Lab pages load
+  freely (no data in them); their data needs an access code, the same pattern as the Mensuro app.
+  The code is the Netlify env var `LAB_PASSWORD`; the data stays closed if it's unset.
 - `lab/camera-health/index.html` is generated from the private `visionspect/quality-gate` repo
   (`node monitor/build-lab-page.js <path>`). Don't hand-edit it; change the template there and regenerate.
 - Its data comes from Google Cloud Run via the env var `CAMERA_HEALTH_DATA_URL`, fetched by the edge

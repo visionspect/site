@@ -33,6 +33,7 @@
   --r:10px;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;margin:0}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:#0e120f}
 h1,h2,h3{font-family:var(--head);margin:0;text-wrap:balance}
@@ -160,6 +161,17 @@ tbody tr{cursor:pointer} tbody tr:hover{background:var(--panel2)}
 .det .detmeta{font-size:12px;color:var(--dim);margin:2px 0 10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .empty-det{padding:0 16px 16px;color:var(--faint);font-size:13px}
 
+.lock{background:none;cursor:pointer;font:inherit;font-family:var(--mono);font-size:10.5px}
+.lock:hover{color:var(--ink);border-color:var(--dim)}
+.gate{max-width:440px;margin:48px auto;padding:22px 22px 20px}
+.gate h2{font-size:18px;margin-bottom:6px}
+.gate p{color:var(--dim);font-size:13.5px;margin:0 0 14px}
+.gate label{display:block;font-size:12px;color:var(--dim);margin-bottom:6px}
+.gate-row{display:flex;gap:8px}
+.gate input{flex:1;min-width:0;background:var(--well);border:1px solid var(--line2);border-radius:8px;padding:9px 11px;color:var(--ink);font:inherit;font-family:var(--mono)}
+.gate input:focus{outline:none;border-color:var(--accent)}
+.gate button{background:var(--ink);color:#0e120f;border:none;border-radius:8px;padding:9px 16px;font-weight:700;cursor:pointer}
+.gate .err{color:var(--critical);font-size:12.5px;margin:10px 0 0}
 footer.method{font-size:12px;color:var(--faint);line-height:1.6}
 footer.method b{color:var(--dim)}
 footer.method code{font-family:var(--mono);color:var(--dim);font-size:11.5px}
@@ -175,9 +187,9 @@ footer.method code{font-family:var(--mono);color:var(--dim);font-size:11.5px}
     <a class="wm" href="/" aria-label="VisionSpect">Visi<svg aria-hidden="true"><use href="#ring"/></svg>nSpect</a>
     <nav class="tabs" aria-label="Tools">
       <a href="#" aria-current="page">Camera health</a>
-      <a href="inspectability.html" id="inspLink">Inspectability</a>
+      <a href="inspectability.html" id="inspLink" hidden>Inspectability</a>
     </nav>
-    <div class="meta"><span class="tag" id="srcTag">SCDOT 511</span><span class="tag sim" id="simTag" hidden>SIMULATED DATA</span><span class="tag" id="lastTag"></span></div>
+    <div class="meta"><span class="tag" id="srcTag">SCDOT 511</span><span class="tag sim" id="simTag" hidden>SIMULATED DATA</span><span class="tag" id="lastTag" hidden></span><button class="tag lock" id="lockBtn" type="button" hidden>Lock</button></div>
   </div>
 </header>
 
@@ -251,10 +263,10 @@ function vsDashboard(D) {
   const pct = (v) => v == null ? '—' : `${Math.round(v)}%`;
 
   // ---- header / notices
-  if (D.inspectabilityHref) $('#inspLink').setAttribute('href', D.inspectabilityHref); else $('#inspLink').hidden = true;
+  if (D.inspectabilityHref) { $('#inspLink').setAttribute('href', D.inspectabilityHref); $('#inspLink').hidden = false; }
   $('#srcTag').textContent = D.source || 'SCDOT 511';
   if (D.simulated) { $('#simTag').hidden = false; $('#simNotice').hidden = false; }
-  $('#lastTag').textContent = `last cycle ${fmtDT(D.end)}`;
+  $('#lastTag').textContent = `last cycle ${fmtDT(D.end)}`; $('#lastTag').hidden = false;
   $('#tlSub').textContent = `${D.cameras.length} cameras · ${fmtDT(D.start)} – ${fmtT(D.end)} · ${D.stepMin}-min cycles`;
 
   // ---- derived per camera
@@ -476,15 +488,55 @@ function vsDashboard(D) {
   let rz, lastW = 0; new ResizeObserver(() => { const w = document.body.clientWidth; if (w === lastW) return; lastW = w; clearTimeout(rz); rz = setTimeout(() => { drawTimeline(); if (selected) select(selected, false); }, 120); }).observe(document.body);
 }
 // Data is either embedded (local dashboard.html) or fetched (hosted page sets window.VS_DATA_URL).
+// Hosted: like the Mensuro app, an access code unlocks the data. The page itself holds no data;
+// the server checks the code on every data request. The code is remembered in this browser.
 (function boot() {
   if (window.VS_DATA) return vsDashboard(window.VS_DATA);
   if (!window.VS_DATA_URL) return vsDashboard(null);
-  fetch(window.VS_DATA_URL, { cache: 'no-store', credentials: 'same-origin' })
-    .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(vsDashboard)
-    .catch((e) => { document.querySelector('main .wrap').innerHTML = '<p class="notice"><b>Couldn\u2019t load camera data</b> (' + String(e.message).replace(/[<>&]/g, '') + '). The monitor may not have published yet; try again in a few minutes.</p>'; });
+  const KEY = 'vs_lab_access', main = document.querySelector('main .wrap'), shell = main.innerHTML;
+  const store = {
+    get() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } },
+    set(v) { try { localStorage.setItem(KEY, v); } catch (e) { /* storage blocked: ask again next visit */ } },
+    del() { try { localStorage.removeItem(KEY); } catch (e) { /* fine */ } }
+  };
+  const lock = document.getElementById('lockBtn');
+  lock.addEventListener('click', () => { store.del(); location.reload(); });
+  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function gate(msg) {
+    lock.hidden = true;
+    main.innerHTML = '<section class="sec gate" aria-labelledby="gateH"><h2 id="gateH">Private preview</h2>' +
+      '<p>This page isn’t public. Enter the access code you were given.</p>' +
+      '<form id="gateForm" novalidate><label for="accessCode">Access code</label><div class="gate-row">' +
+      '<input id="accessCode" type="password" autocomplete="current-password" required><button type="submit">Open</button></div>' +
+      '<p class="err" id="gateErr" role="alert"' + (msg ? '' : ' hidden') + '>' + esc(msg || '') + '</p></form></section>';
+    const input = document.getElementById('accessCode');
+    input.focus();
+    document.getElementById('gateForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const code = input.value.trim();
+      if (!code) { const er = document.getElementById('gateErr'); er.textContent = 'Enter the access code.'; er.hidden = false; return; }
+      load(code, true);
+    });
+  }
+  function load(code, typed) {
+    fetch(window.VS_DATA_URL, { cache: 'no-store', headers: { 'X-VisionSpect-Access': code } })
+      .then((r) => {
+        if (r.status === 401) { store.del(); gate(typed ? 'That access code isn’t right.' : ''); return null; }
+        if (!r.ok) return r.json().catch(() => ({})).then((j) => { throw new Error(j.error || 'HTTP ' + r.status); });
+        return r.json();
+      })
+      .then((data) => {
+        if (!data) return;
+        store.set(code);
+        main.innerHTML = shell; lock.hidden = false;
+        vsDashboard(data);
+      })
+      .catch((e) => { main.innerHTML = '<p class="notice"><b>Couldn’t load camera data</b> (' + esc(e.message) + '). The monitor may not have published yet; try again in a few minutes.</p>'; });
+  }
+  const saved = store.get();
+  if (saved) { main.innerHTML = '<p class="notice">Loading camera data…</p>'; load(saved, false); } else gate('');
   // refresh with the monitor's cadence while the tab is visible
-  setInterval(() => { if (!document.hidden) location.reload(); }, 10 * 60 * 1000);
+  setInterval(() => { if (!document.hidden && store.get()) location.reload(); }, 10 * 60 * 1000);
 })();
 </script>
 
