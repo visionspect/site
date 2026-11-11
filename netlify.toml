@@ -24,7 +24,7 @@
   [headers.values]
     X-Robots-Tag = "noindex"
 
-# Lab pages: unlisted R&D, password-protected by netlify/edge-functions/lab-auth.js
+# Lab pages: unlisted R&D. No data in the pages; their data sits behind an access-coded API (see CLAUDE.md)
 [[headers]]
   for = "/lab/*"
   [headers.values]

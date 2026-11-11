@@ -51,13 +51,15 @@ on every merge to `main`.
   an illustration instead.
 
 ## Lab (`/lab/`)
-- Every request under `/lab/` goes through `netlify/edge-functions/lab-auth.js`. Lab pages load
-  freely (no data in them); their data needs an access code, the same pattern as the Mensuro app.
-  The code is the Netlify env var `LAB_PASSWORD`; the data stays closed if it's unset.
-- `lab/camera-health/index.html` is generated from the private `visionspect/quality-gate` repo
+- Same pattern as the Mensuro app: lab pages are public static files with no data in them (noindex,
+  no-store via `netlify.toml`). Their data comes from an access-coded API on Google Cloud Run
+  (`camera-health-api`, in the private `visionspect/quality-gate` repo). The codes live only in Google
+  Secret Manager. Never put a code in this repo, a commit, a PR or a screenshot.
+- `lab/camera-health/config.js` holds the API URL. It's public on purpose and is the only file to edit
+  when the API moves.
+- `lab/camera-health/index.html` is generated from the private repo
   (`node monitor/build-lab-page.js <path>`). Don't hand-edit it; change the template there and regenerate.
-- Its data comes from Google Cloud Run via the env var `CAMERA_HEALTH_DATA_URL`, fetched by the edge
-  function. Data updates never need a deploy.
+- Data updates never need a deploy.
 - No engine code on this site. The engine stays in the private repo.
 
 ## Conventions

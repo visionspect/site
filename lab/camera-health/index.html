@@ -15,6 +15,7 @@
 @font-face { font-family: "Lato"; font-style: normal; font-weight: 400; font-display: swap; src: url("/assets/fonts/lato-latin-400-normal.woff2") format("woff2"); }
 @font-face { font-family: "Lato"; font-style: normal; font-weight: 700; font-display: swap; src: url("/assets/fonts/lato-latin-700-normal.woff2") format("woff2"); }
 </style>
+<script src="/lab/camera-health/config.js"></script>
 <title>Camera health · VisionSpect Lab</title>
 <style>
 /* Layout: control-room wall — summary tiles, then a fleet timeline (camera × time), then cameras and episodes side by side; one camera opens in a detail panel.
@@ -189,7 +190,7 @@ footer.method code{font-family:var(--mono);color:var(--dim);font-size:11.5px}
       <a href="#" aria-current="page">Camera health</a>
       <a href="inspectability.html" id="inspLink" hidden>Inspectability</a>
     </nav>
-    <div class="meta"><span class="tag" id="srcTag">SCDOT 511</span><span class="tag sim" id="simTag" hidden>SIMULATED DATA</span><span class="tag" id="lastTag" hidden></span><button class="tag lock" id="lockBtn" type="button" hidden>Lock</button></div>
+    <div class="meta"><span class="tag" id="srcTag">SCDOT 511</span><span class="tag sim" id="simTag" hidden>SIMULATED DATA</span><span class="tag" id="lastTag" hidden></span><button class="tag lock" id="lockBtn" type="button" hidden>Sign out</button></div>
   </div>
 </header>
 
@@ -232,7 +233,7 @@ footer.method code{font-family:var(--mono);color:var(--dim);font-size:11.5px}
 
 <script>
 window.VS_DATA = null;
-window.VS_DATA_URL = 'data.json';
+window.VS_API = (window.VS_LAB && window.VS_LAB.api) || '';
 </script>
 <script>
 function vsDashboard(D) {
@@ -487,54 +488,71 @@ function vsDashboard(D) {
   requestAnimationFrame(() => { drawTimeline(); select(firstIssue.id, false); });
   let rz, lastW = 0; new ResizeObserver(() => { const w = document.body.clientWidth; if (w === lastW) return; lastW = w; clearTimeout(rz); rz = setTimeout(() => { drawTimeline(); if (selected) select(selected, false); }, 120); }).observe(document.body);
 }
-// Data is either embedded (local dashboard.html) or fetched (hosted page sets window.VS_DATA_URL).
-// Hosted: like the Mensuro app, an access code unlocks the data. The page itself holds no data;
-// the server checks the code on every data request. The code is remembered in this browser.
+// Data is either embedded (local dashboard.html) or fetched (the hosted page sets window.VS_API).
+// Hosted: the Mensuro pattern. The page holds no data and no code; the API checks the access code on
+// every request. The code is remembered in this browser until "Sign out".
 (function boot() {
   if (window.VS_DATA) return vsDashboard(window.VS_DATA);
-  if (!window.VS_DATA_URL) return vsDashboard(null);
-  const KEY = 'vs_lab_access', main = document.querySelector('main .wrap'), shell = main.innerHTML;
+  if (window.VS_API === undefined) return vsDashboard(null);
+  const KEY = 'vs_lab_access', API = String(window.VS_API || '').replace(/\/+$/, '');
+  const main = document.querySelector('main .wrap'), shell = main.innerHTML;
   const store = {
     get() { try { return localStorage.getItem(KEY) || ''; } catch (e) { return ''; } },
     set(v) { try { localStorage.setItem(KEY, v); } catch (e) { /* storage blocked: ask again next visit */ } },
     del() { try { localStorage.removeItem(KEY); } catch (e) { /* fine */ } }
   };
-  const lock = document.getElementById('lockBtn');
-  lock.addEventListener('click', () => { store.del(); location.reload(); });
+  const out = document.getElementById('lockBtn');
+  out.addEventListener('click', () => { store.del(); location.reload(); });
   const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const notice = (html) => { out.hidden = true; main.innerHTML = '<p class="notice">' + html + '</p>'; };
+  if (!API) return notice('<b>This preview isn’t connected yet.</b> Check back soon.');
+
   function gate(msg) {
-    lock.hidden = true;
+    out.hidden = true;
     main.innerHTML = '<section class="sec gate" aria-labelledby="gateH"><h2 id="gateH">Private preview</h2>' +
       '<p>This page isn’t public. Enter the access code you were given.</p>' +
       '<form id="gateForm" novalidate><label for="accessCode">Access code</label><div class="gate-row">' +
-      '<input id="accessCode" type="password" autocomplete="current-password" required><button type="submit">Open</button></div>' +
+      '<input id="accessCode" type="password" autocomplete="current-password" autocapitalize="characters" spellcheck="false" required><button type="submit">Continue</button></div>' +
       '<p class="err" id="gateErr" role="alert"' + (msg ? '' : ' hidden') + '>' + esc(msg || '') + '</p></form></section>';
-    const input = document.getElementById('accessCode');
+    const input = document.getElementById('accessCode'), btn = main.querySelector('.gate button');
     input.focus();
     document.getElementById('gateForm').addEventListener('submit', (e) => {
       e.preventDefault();
       const code = input.value.trim();
       if (!code) { const er = document.getElementById('gateErr'); er.textContent = 'Enter the access code.'; er.hidden = false; return; }
-      load(code, true);
+      btn.disabled = true; btn.textContent = 'Checking…';
+      unlock(code);
     });
   }
-  function load(code, typed) {
-    fetch(window.VS_DATA_URL, { cache: 'no-store', headers: { 'X-VisionSpect-Access': code } })
-      .then((r) => {
-        if (r.status === 401) { store.del(); gate(typed ? 'That access code isn’t right.' : ''); return null; }
-        if (!r.ok) return r.json().catch(() => ({})).then((j) => { throw new Error(j.error || 'HTTP ' + r.status); });
-        return r.json();
-      })
-      .then((data) => {
-        if (!data) return;
-        store.set(code);
-        main.innerHTML = shell; lock.hidden = false;
-        vsDashboard(data);
-      })
-      .catch((e) => { main.innerHTML = '<p class="notice"><b>Couldn’t load camera data</b> (' + esc(e.message) + '). The monitor may not have published yet; try again in a few minutes.</p>'; });
+  // one GET with the header; resolves {status, body}, or rejects when the server can't be reached
+  const call = (route, code) => fetch(API + route, { cache: 'no-store', headers: { 'X-VisionSpect-Access': code } })
+    .then((r) => r.json().catch(() => ({})).then((body) => ({ status: r.status, body })));
+  const UNREACHABLE = 'Couldn’t reach the VisionSpect server. Check your connection and try again.';
+
+  // typed or invite-link code: check it first (GET /v1/access), then load
+  function unlock(code) {
+    call('/v1/access', code).then(({ status, body }) => {
+      if (status === 200) { store.set(code); return load(code); }
+      store.del();
+      gate(status === 401 ? 'That access code isn’t right.' : (body.error || 'Something went wrong (' + status + ').'));
+    }, () => gate(UNREACHABLE));
   }
-  const saved = store.get();
-  if (saved) { main.innerHTML = '<p class="notice">Loading camera data…</p>'; load(saved, false); } else gate('');
+  function load(code) {
+    notice('Loading camera data…');
+    call('/v1/camera-health', code).then(({ status, body }) => {
+      if (status === 200) { main.innerHTML = shell; out.hidden = false; return vsDashboard(body); }
+      if (status === 401) { store.del(); return gate(''); }                 // code retired or changed
+      notice('<b>Couldn’t load camera data.</b> ' + esc(body.error || 'Error ' + status + '.'));
+      out.hidden = false;                                                   // signed in; allow sign out
+    }, () => { notice('<b>' + esc(UNREACHABLE) + '</b>'); out.hidden = false; });
+  }
+
+  // invite link: /lab/camera-health/?code=XXXX. Strip it from the address bar right away.
+  const q = new URLSearchParams(location.search), invite = (q.get('code') || '').trim();
+  if (q.has('code')) { q.delete('code'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash); }
+  if (invite) unlock(invite);
+  else if (store.get()) load(store.get());
+  else gate('');
   // refresh with the monitor's cadence while the tab is visible
   setInterval(() => { if (!document.hidden && store.get()) location.reload(); }, 10 * 60 * 1000);
 })();
